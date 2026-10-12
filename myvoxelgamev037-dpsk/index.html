@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voxel World</title>
+    <link rel="stylesheet" href="style.css">
+    <script type="importmap">
+        { "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }}
+    </script>
+</head>
+<body>
+
+    <!-- ============ MAIN MENU ============ -->
+    <div id="menu" class="screen">
+        <div class="panel">
+            <header class="brand">
+                <div class="logo"></div>
+                <div>
+                    <h1>Voxel World</h1>
+                    <p>Deterministic infinite terrain · survival · multiplayer</p>
+                </div>
+            </header>
+
+            <div class="group">
+                <label class="label" for="seed-input">Seed</label>
+                <div class="row">
+                    <input id="seed-input" type="text" placeholder="Leave empty for a surprise"
+                           autocomplete="off" spellcheck="false" maxlength="48">
+                    <button id="random-seed-btn" type="button" class="ghost" title="Random seed">↻</button>
+                </div>
+            </div>
+
+            <div class="group">
+                <label class="label">Render distance</label>
+                <div class="segmented" role="tablist">
+                    <button type="button" data-distance="4">Near</button>
+                    <button type="button" data-distance="6" class="selected">Medium</button>
+                    <button type="button" data-distance="8">Far</button>
+                    <button type="button" data-distance="8" data-lod="16">Extended</button>
+                </div>
+                <p class="note"><strong>Extended</strong> keeps the world visible with low-detail geometry beyond
+                   <em>Far</em>. Lower it if performance suffers.</p>
+            </div>
+
+            <label class="toggle">
+                <input id="shadow-toggle" type="checkbox" checked>
+                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                <span class="toggle-label">Sun and moon shadows</span>
+            </label>
+
+            <button id="generate-btn" type="button" class="primary">Generate world</button>
+            <button id="open-btn" type="button" class="ghost wide">Load world from file…</button>
+
+            <details class="keys-wrap">
+                <summary>Controls &amp; Multiplayer</summary>
+                <dl class="keys">
+                    <dt>W A S D</dt><dd>Move</dd>
+                    <dt>Space</dt><dd>Jump / swim up</dd>
+                    <dt>Shift</dt><dd>Sprint</dd>
+                    <dt>Ctrl</dt><dd>Dive</dd>
+                    <dt>Left click</dt><dd>Mine · attack</dd>
+                    <dt>Right click</dt><dd>Place · open · eat</dd>
+                    <dt>1 – 0 · scroll</dt><dd>Hotbar slot</dd>
+                    <dt>I</dt><dd>Inventory</dd>
+                    <dt>T · N · F5</dt><dd>Chat · Rename · Third-person</dd>
+                </dl>
+                <div class="mp-panel" id="mp-panel">
+                    <input id="mp-name" type="text" placeholder="Your name" maxlength="24">
+                    <div class="row">
+                        <button id="mp-host" type="button">Host world</button>
+                        <button id="mp-join-toggle" type="button">Join world</button>
+                    </div>
+                    <div id="mp-join-row" class="hidden row" style="margin-top:8px;">
+                        <input id="mp-room" type="text" placeholder="Room code" maxlength="16">
+                        <button id="mp-join" type="button">Connect</button>
+                    </div>
+                    <div id="mp-invite" class="hidden">
+                        <div class="label" style="margin-top:14px;">Room code</div>
+                        <div class="mp-room" id="mp-room-display">------</div>
+                        <div class="row">
+                            <button id="mp-invite-gmail" type="button">Invite via Gmail</button>
+                            <button id="mp-copy-link" type="button">Copy link</button>
+                        </div>
+                        <div id="mp-invite-link" class="note"></div>
+                    </div>
+                    <div id="mp-disconnect" class="hidden" style="margin-top:8px;">
+                        <button type="button" class="ghost wide">Disconnect</button>
+                    </div>
+                    <div id="mp-status" class="status">Not connected</div>
+                </div>
+            </details>
+        </div>
+    </div>
+
+    <!-- ============ LOADING ============ -->
+    <div id="loading" class="screen center hidden">
+        <div class="card">
+            <h2>Generating world</h2>
+            <div class="bar"><div id="loading-bar"></div></div>
+            <p id="loading-pct" class="mono">0%</p>
+        </div>
+    </div>
+
+    <!-- ============ CLICK TO PLAY ============ -->
+    <div id="ready" class="screen center hidden">
+        <div class="card">
+            <h2>Click to play</h2>
+            <p>Press <kbd>Esc</kbd> to release the mouse.</p>
+        </div>
+    </div>
+
+    <!-- ============ PAUSE ============ -->
+    <div id="pause" class="screen center hidden">
+        <div class="card">
+            <h2>Paused</h2>
+            <div class="row center">
+                <button id="resume-btn" type="button" class="primary">Resume</button>
+            </div>
+            <div class="row center">
+                <button id="save-btn" type="button">Save</button>
+                <button id="pause-open-btn" type="button">Open</button>
+            </div>
+            <div class="row center">
+                <button id="menu-btn" type="button" class="ghost">Main menu</button>
+            </div>
+            <div id="pause-room" class="pause-room hidden">
+                <span>Room code</span>
+                <strong id="pause-room-code" class="mono"></strong>
+                <button id="pause-copy-btn" type="button">Copy invite link</button>
+            </div>
+            <p id="pause-msg" class="note"></p>
+        </div>
+    </div>
+
+    <!-- ============ HUD ============ -->
+    <div id="crosshair" class="hidden"></div>
+    <div id="water-overlay"></div>
+    <div id="damage-overlay"></div>
+    <div id="hud" class="hidden mono"></div>
+
+    <div id="status-bars" class="hidden">
+        <div id="hearts" class="icon-row"></div>
+        <div id="hungries" class="icon-row"></div>
+    </div>
+
+    <div id="mine-hud" class="hidden"><div id="mine-hud-fill"></div></div>
+
+    <div id="hotbar" class="hidden"></div>
+
+    <input id="file-input" type="file" accept=".json,.voxel,application/json" class="hidden">
+    <script type="module" src="main.js"></script>
+</body>
+</html>
